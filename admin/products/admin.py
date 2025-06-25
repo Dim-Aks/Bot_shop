@@ -1,6 +1,6 @@
 from django.contrib import admin
-from .models import Category, SubCategory, Product
 
+from .models import Category, SubCategory, Product
 
 admin.site.site_header = "Администрирование бота"  # Заголовок сайта
 admin.site.site_title = "Администрирование"  # Заголовок в панели управления
