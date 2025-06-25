@@ -1,3 +1,4 @@
+import logging
 import os
 
 from aiogram import Bot
@@ -14,6 +15,7 @@ from dotenv import load_dotenv
 from users.models import User
 from .models import Mailing
 
+logger = logging.getLogger('mailing')  # Получаем логгер для приложения mailing
 load_dotenv()
 
 
@@ -59,10 +61,13 @@ class MailingAdmin(admin.ModelAdmin):
                 mailing.sent = True
                 mailing.save()
                 self.message_user(request, "Рассылка успешно отправлена.", level=messages.SUCCESS)
+                logger.info(f"Рассылка {mailing.pk} успешно отправлена.")
             except Exception as e:
                 self.message_user(request, f"Ошибка при отправке рассылки: {e}", level=messages.ERROR)
+                logger.error(f"Ошибка при отправке рассылки {mailing.pk}: {e}", exc_info=True)
         else:
             self.message_user(request, "Рассылка уже была отправлена.", level=messages.WARNING)
+            logger.warning(f"Попытка повторной отправки рассылки {mailing.pk}.")
 
         return redirect(reverse('admin:mailing_mailing_changelist'))
 
@@ -77,11 +82,14 @@ class MailingAdmin(admin.ModelAdmin):
                         with default_storage.open(mailing.media_file.name, 'rb') as file:
                             async_to_sync(bot.send_photo)(user.telegram_id, file.read(),
                                                           caption=mailing.text if mailing.text else None)
+                            logger.info(f"Отправлено фото пользователю {user.telegram_id} для рассылки {mailing.pk}")
                     except Exception as e:
-                        print(f"Ошибка при отправке фотографии пользователю {user.telegram_id}: {e}")
+                        logger.error(f"Ошибка при отправке фото пользователю {user.telegram_id}: {e}", exc_info=True)
                 elif mailing.text:
                     async_to_sync(bot.send_message)(user.telegram_id, mailing.text)
+                    logger.info(f"Отправлено сообщение пользователю {user.telegram_id} для рассылки {mailing.pk}")
                 else:
-                    print(f"Нет текста или медиафайла для отправки {user.telegram_id}")
+                    logger.warning(
+                        f"Нет текста или медиафайла для отправки пользователю {user.telegram_id} для рассылки {mailing.pk}")
             except Exception as e:
-                print(f"Не удалось отправить сообщение пользователю {user.telegram_id}: {e}")
+                logger.error(f"Не удалось отправить сообщение пользователю {user.telegram_id}: {e}", exc_info=True)
