@@ -5,11 +5,10 @@ logger = logging.getLogger('users')
 
 
 class User(models.Model):
-    telegram_id = models.BigIntegerField(unique=True, verbose_name='Telegram ID')
+    user_id = models.BigIntegerField(unique=True, verbose_name='Telegram ID')
     username = models.CharField(max_length=100, blank=True, null=True, verbose_name='Username')
     first_name = models.CharField(max_length=100, blank=True, null=True, verbose_name='Имя')
     last_name = models.CharField(max_length=100, blank=True, null=True, verbose_name='Фамилия')
-    registration_date = models.DateTimeField(auto_now_add=True, verbose_name='Дата регистрации')
     is_active = models.BooleanField(default=True, verbose_name='Активный')
 
     class Meta:
@@ -17,7 +16,7 @@ class User(models.Model):
         verbose_name_plural = 'Пользователи'
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name} ({self.telegram_id})"
+        return f"{self.first_name} {self.last_name} ({self.user_id})"
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding  # Определяем, новый ли это объект
