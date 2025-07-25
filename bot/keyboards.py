@@ -1,7 +1,18 @@
+from aiogram import types
+
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from database import fetch_categories, fetch_subcategories, fetch_products_by_subcategory
+from database import fetch_categories, fetch_subcategories, fetch_products_by_subcategory, fetch_subcategory
+
+
+# Клавиатура категорий
+async def send_categories_keyboard(query: types.CallbackQuery):
+    await query.message.edit_text(
+        "Выберите категорию товаров:",
+        reply_markup=await create_categories_keyboard()
+    )
+    await query.answer()
 
 
 # Создает кнопки пагинации
@@ -20,7 +31,9 @@ async def create_categories_keyboard(page: int = 1) -> InlineKeyboardMarkup:
     categories = await fetch_categories()
     if not categories:
         return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Нет категорий",
-                                                                           callback_data="ignore")]])
+                                                                           callback_data="ignore")],
+                                                     [InlineKeyboardButton(text="Перейти в корзину",
+                                                                           callback_data="view_cart")]])
 
     items_per_page = 5  # Количество категорий на одной странице
     start_index = (page - 1) * items_per_page
@@ -31,9 +44,10 @@ async def create_categories_keyboard(page: int = 1) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for category in current_categories:
         builder.row(InlineKeyboardButton(text=category.name, callback_data=f"category:{category.id}"))
+    builder.row(InlineKeyboardButton(text="Перейти в корзину", callback_data="view_cart"))
 
     if total_pages > 1:
-        builder.row(*create_pagination_buttons(page, total_pages, "categories"))
+        builder.row(*create_pagination_buttons(page, total_pages, "category"))
 
     return builder.as_markup()
 
@@ -43,7 +57,9 @@ async def create_subcategories_keyboard(category_id: int, page: int = 1) -> Inli
     subcategories = await fetch_subcategories(category_id)
     if not subcategories:
         return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Нет подкатегорий",
-                                                                           callback_data="ignore")]])
+                                                                           callback_data="ignore")],
+                                                     [InlineKeyboardButton(text="Перейти в корзину",
+                                                                           callback_data="view_cart")]])
 
     items_per_page = 5  # Количество подкатегорий на одной странице
     start_index = (page - 1) * items_per_page
@@ -58,7 +74,8 @@ async def create_subcategories_keyboard(category_id: int, page: int = 1) -> Inli
     if total_pages > 1:
         builder.row(*create_pagination_buttons(page, total_pages, f"subcategory:{category_id}"))
 
-    builder.row(InlineKeyboardButton(text="Назад к категориям", callback_data="back_to_categories"))
+    builder.row(InlineKeyboardButton(text="Назад к категориям", callback_data=f"back_to_categories"))
+    builder.row(InlineKeyboardButton(text="Перейти в корзину", callback_data="view_cart"))
 
     return builder.as_markup()
 
@@ -66,10 +83,13 @@ async def create_subcategories_keyboard(category_id: int, page: int = 1) -> Inli
 # Создает клавиатуру товаров с пагинацией
 async def create_products_keyboard(subcategory_id: int, page: int = 1) -> InlineKeyboardMarkup:
     products = await fetch_products_by_subcategory(subcategory_id)
+    subcategory = await fetch_subcategory(subcategory_id)
     if not products:
         keyboard = InlineKeyboardBuilder()
         keyboard.row(InlineKeyboardButton(text="Нет товаров", callback_data="ignore"))
-        keyboard.row(InlineKeyboardButton(text="Назад к подкатегориям", callback_data="back_to_subcategories"))
+        keyboard.row(InlineKeyboardButton(text="Назад к подкатегориям",
+                                          callback_data=f"category:{subcategory.category_id}"))
+        keyboard.row(InlineKeyboardButton(text="Перейти в корзину", callback_data="view_cart"))
         return keyboard.as_markup()
 
     items_per_page = 3  # Количество товаров на одной странице
@@ -85,6 +105,7 @@ async def create_products_keyboard(subcategory_id: int, page: int = 1) -> Inline
     if total_pages > 1:
         builder.row(*create_pagination_buttons(page, total_pages, f"products:{subcategory_id}"))
 
-    builder.row(InlineKeyboardButton(text="Назад к подкатегориям", callback_data="back_to_subcategories"))
+    builder.row(InlineKeyboardButton(text="Назад к подкатегориям", callback_data=f"category:{subcategory.category_id}"))
+    builder.row(InlineKeyboardButton(text="Перейти в корзину", callback_data="view_cart"))
 
     return builder.as_markup()

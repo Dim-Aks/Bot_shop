@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from database import fetch_product, \
     add_to_cart, fetch_cart, remove_from_cart, clear_cart, add_user_if_not_exists
 from keyboards import create_categories_keyboard, \
-    create_subcategories_keyboard, create_products_keyboard
+    create_subcategories_keyboard, create_products_keyboard, send_categories_keyboard
 from state import QuantityForm, DeliveryForm
 from utils import check_subscription_by_username
 
@@ -41,9 +41,16 @@ async def command_start_handler(message: types.Message, bot: Bot):
         if not is_subscribed:
             await message.reply("Пожалуйста, подпишитесь на канал @Aksenona, чтобы использовать бота.")
             return
-    await message.answer("Добро пожаловать!\nВыберите категорию товаров:",
-                         reply_markup=await create_categories_keyboard()
-                         )
+    await message.answer(
+        "Добро пожаловать!\nВыберите категорию товаров:",
+        reply_markup=await create_categories_keyboard()
+    )
+
+
+# Обработчик отправки клавиатуры категорий
+@router.callback_query(F.data == "back_to_categories")
+async def back_to_categories_callback(query: types.CallbackQuery):
+    await send_categories_keyboard(query)
 
 
 # Oбработчик выбора категории
@@ -74,8 +81,9 @@ async def product_callback(query: CallbackQuery, state: FSMContext):
 
         # Создаем inline-клавиатуру
         keyboard = InlineKeyboardBuilder()
-        keyboard.row(InlineKeyboardButton(text="Добавить в корзину", callback_data=f"add_to_cart:{product_id}"))
         keyboard.row(InlineKeyboardButton(text="Назад к товарам", callback_data=f"subcategory:{product.subcategory_id}"))
+        keyboard.row(InlineKeyboardButton(text="Добавить в корзину", callback_data=f"add_to_cart:{product_id}"))
+        keyboard.row(InlineKeyboardButton(text="Перейти в корзину", callback_data="view_cart"))
 
         # Проверка на наличие фото
         if product.photo:
@@ -264,7 +272,7 @@ async def process_phone(message: types.Message, state: FSMContext):
 
 # Обработчик нажатия кнопки "Оплатить
 @router.callback_query(F.data == "pay")
-async def pay_callback(query: CallbackQuery, state: FSMContext):
+async def pay_callback(query: CallbackQuery, state: FSMContext, bot: Bot):
     if not PAYMENT_TOKEN:
         await query.answer("Ошибка: не настроен токен для платежей.")
         return
@@ -278,7 +286,7 @@ async def pay_callback(query: CallbackQuery, state: FSMContext):
 
     prices = [LabeledPrice(label="Заказ", amount=int(total_amount * 100))]
 
-    await Bot.send_invoice(
+    await bot.send_invoice(
         chat_id=query.from_user.id,
         title="Оплата заказа",
         description="Оплата вашего заказа в Telegram боте.",
@@ -289,9 +297,9 @@ async def pay_callback(query: CallbackQuery, state: FSMContext):
         payload="some_invoice_payload",
         need_name=True,
         need_phone_number=True,
-        need_shipping_address=False,  # если нужен адрес доставки
+        need_shipping_address=True,
         send_email_to_provider=False,  # отправка почты
-        # is_flexible=False   Указывает, можно ли менять сумму
+        is_flexible=False  # Указывает, можно ли менять сумму
     )
     await query.answer()  # Подтверждаем получение callback_query
 
@@ -299,7 +307,7 @@ async def pay_callback(query: CallbackQuery, state: FSMContext):
 # @router.pre_checkout_query()
 # async def pre_checkout_query(pre_checkout_query: PreCheckoutQuery, bot: Bot):
 #     """
-#     Проверка перед оплатой. В реальном проекте здесь нужно проверять
+#     Проверка перед оплатой - здесь нужно проверять
 #     наличие товара, возможность доставки и другие параметры заказа.
 #     """
 #     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)

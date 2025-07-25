@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List, Any, Sequence, Coroutine
+from typing import Any, Sequence
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine, AsyncSession
@@ -100,6 +100,19 @@ async def fetch_subcategories(category_id: int) -> Sequence[SubCategory] | list[
         except Exception as e:
             logger.error(f"Ошибка получения подкатегорий: {e}")
             return []
+
+
+# Получаем объект подкатегории
+async def fetch_subcategory(subcategory_id: int) -> SubCategory | None:
+    async for db in get_async_db():
+        try:
+            stmt = select(SubCategory).where(SubCategory.id == subcategory_id)
+            result = await db.execute(stmt)
+            subcategory = result.scalar_one_or_none()
+            return subcategory
+        except Exception as e:
+            logger.error(f"Ошибка получения подкатегории: {e}")
+            return None
 
 
 # Получаем список товаров для заданной подкатегории
