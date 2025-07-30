@@ -9,7 +9,7 @@ admin.site.index_title = "Панель управления"  # Заголово
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name',) # Отображение полей в админке
+    list_display = ('name',)  # Отображение полей в админке
     search_fields = ('name',)  # Поле для поиска
 
 

@@ -5,12 +5,12 @@ from aiogram import types, Bot, Router, F
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, LabeledPrice
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, LabeledPrice, PreCheckoutQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from dotenv import load_dotenv
 
 from database import fetch_product, \
-    add_to_cart, fetch_cart, remove_from_cart, clear_cart, add_user_if_not_exists
+    add_to_cart, fetch_cart, remove_from_cart, clear_cart, add_user_if_not_exists, fetch_subcategory
 from keyboards import create_categories_keyboard, \
     create_subcategories_keyboard, create_products_keyboard, send_categories_keyboard
 from state import QuantityForm, DeliveryForm
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Канал/группа для проверки подписки
 CHANNEL_USERNAME = os.getenv("CHANNEL_ID")
-PAYMENT_TOKEN = os.getenv("PAYMENT_TOKEN")
+PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN")
 
 
 # Oбработчик команды start
@@ -67,6 +67,7 @@ async def category_callback(query: CallbackQuery):
 @router.callback_query(F.data.startswith("subcategory:"))
 async def subcategory_callback(query: CallbackQuery):
     subcategory_id = int(query.data.split(":")[1])
+
     await query.message.edit_text("Выберите товар:", reply_markup=await create_products_keyboard(subcategory_id))
     await query.answer()
 
@@ -89,7 +90,7 @@ async def product_callback(query: CallbackQuery, state: FSMContext):
         if product.photo:
             try:
                 await query.message.answer_photo(
-                    photo=types.FSInputFile(product.photo),  # Или types.URLInputFile
+                    photo=types.URLInputFile(product.photo),  # Или FSInputFile
                     caption=f"<b>{product.name}</b>\n\n{product.description}\n\nЦена: {product.price} руб.",
                     parse_mode=ParseMode.HTML,
                     reply_markup=keyboard.as_markup()
@@ -273,57 +274,84 @@ async def process_phone(message: types.Message, state: FSMContext):
 # Обработчик нажатия кнопки "Оплатить
 @router.callback_query(F.data == "pay")
 async def pay_callback(query: CallbackQuery, state: FSMContext, bot: Bot):
-    if not PAYMENT_TOKEN:
-        await query.answer("Ошибка: не настроен токен для платежей.")
-        return
+    try:
+        if not PROVIDER_TOKEN:
+            await query.answer("Ошибка: не настроен токен для платежей.")
+            return
 
+        user_data = await state.get_data()
+        total_amount = user_data.get('total_amount', 0)
+
+        if total_amount <= 0:
+            await query.answer("Некорректная сумма заказа.")
+            return
+
+        prices = [LabeledPrice(label="Заказ", amount=int(total_amount * 100))]
+
+        await bot.send_invoice(
+            chat_id=query.from_user.id,
+            title="Оплата заказа",
+            description="Оплата вашего заказа в Telegram боте.",
+            provider_token=PROVIDER_TOKEN,
+            currency="RUB",
+            prices=prices,
+            start_parameter="example",
+            payload=f"order_id_{query.from_user.id}_{total_amount}",
+            need_name=True,
+            need_phone_number=True,
+            need_shipping_address=False,  # адрес доставки
+            send_email_to_provider=False,  # отправка почты
+            is_flexible=False  # Указывает, можно ли менять сумму
+        )
+        await query.answer("После нажатия кнопки перенаправим вас для оплаты")
+    except Exception as e:
+        logger.error(f"Ошибка при отправке инвойса: {e}")
+        await query.answer("Произошла ошибка при подготовке оплаты.")
+
+
+# Проверка перед оплатой - здесь можно проверять наличие товара, возможность доставки и другие параметры заказа
+@router.pre_checkout_query(lambda query: True)  # Обрабатывает все pre_checkout_query
+async def pre_checkout_query_handler(query: PreCheckoutQuery, bot: Bot, state: FSMContext):
+    # Получаем данные, которые мы сохранили ранее (например, total_amount)
     user_data = await state.get_data()
-    total_amount = user_data.get('total_amount', 0)
+    total_amount_from_state = user_data.get('total_amount', 0)
+    order_payload = query.invoice_payload  # Получаем payload, который мы отправляли
 
-    if total_amount <= 0:
-        await query.answer("Некорректная сумма заказа.")
+    # Простая проверка суммы
+    if query.total_amount != int(total_amount_from_state * 100):
+        await bot.answer_pre_checkout_query(pre_checkout_query_id=query.id,
+                                            ok=False,
+                                            error_message="Некорректная сумма заказа. Пожалуйста, попробуйте еще раз."
+                                            )
+        logger.info(f"PreCheckoutQuery: Неверная сумма."
+                    f" Ожидали {int(total_amount_from_state * 100)}, получили {query.total_amount}")
         return
-
-    prices = [LabeledPrice(label="Заказ", amount=int(total_amount * 100))]
-
-    await bot.send_invoice(
-        chat_id=query.from_user.id,
-        title="Оплата заказа",
-        description="Оплата вашего заказа в Telegram боте.",
-        provider_token=PAYMENT_TOKEN,
-        currency="RUB",
-        prices=prices,
-        start_parameter="example",
-        payload="some_invoice_payload",
-        need_name=True,
-        need_phone_number=True,
-        need_shipping_address=True,
-        send_email_to_provider=False,  # отправка почты
-        is_flexible=False  # Указывает, можно ли менять сумму
-    )
-    await query.answer()  # Подтверждаем получение callback_query
-
-
-# @router.pre_checkout_query()
-# async def pre_checkout_query(pre_checkout_query: PreCheckoutQuery, bot: Bot):
-#     """
-#     Проверка перед оплатой - здесь нужно проверять
-#     наличие товара, возможность доставки и другие параметры заказа.
-#     """
-#     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+    
+    # Если все проверки пройдены, подтверждаем платеж
+    await bot.answer_pre_checkout_query(pre_checkout_query_id=query.id, ok=True)
+    logging.info(f"PreCheckoutQuery: Платеж подтвержден для payload: {order_payload}")
 
 
 # Обработчик успешной оплаты
 @router.message(F.content_type == types.ContentType.SUCCESSFUL_PAYMENT)
 async def successful_payment(message: types.Message, state: FSMContext):
-    await message.answer("Спасибо за оплату! Ваш заказ принят в обработку.")
+    payment_info = message.successful_payment
+    order_payload = payment_info.invoice_payload
+
+    await message.answer(f"✅ Ваш заказ успешно оплачен!\n"
+                         f"ID платежа: {payment_info.telegram_payment_charge_id}\n"
+                         f"Сумма: {payment_info.total_amount / 100} {payment_info.currency}\n"
+                         f"Payload: {order_payload}"
+                         )
     await clear_cart(message.from_user.id)  # Очищаем корзину после успешной оплаты
-    await state.clear()
+    await state.clear()  # Очистка state для этого пользователя
 
 
 # Обработчик отмены заказа
 @router.callback_query(F.data == "cancel_order")
 async def cancel_order_callback(query: CallbackQuery, state: FSMContext):
+    keyboard = InlineKeyboardBuilder()
+    keyboard.row(InlineKeyboardButton(text="Перейти в корзину", callback_data="view_cart"))
     await query.message.answer("Заказ отменен.")
     await state.clear()  # Сбрасываем состояние
     await query.answer()
