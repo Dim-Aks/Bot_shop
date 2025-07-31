@@ -10,7 +10,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from dotenv import load_dotenv
 
 from database import fetch_product, \
-    add_to_cart, fetch_cart, remove_from_cart, clear_cart, add_user_if_not_exists, fetch_subcategory
+    add_to_cart, fetch_cart, remove_from_cart, clear_cart, add_user_if_not_exists
 from keyboards import create_categories_keyboard, \
     create_subcategories_keyboard, create_products_keyboard, send_categories_keyboard
 from state import QuantityForm, DeliveryForm
@@ -67,8 +67,9 @@ async def category_callback(query: CallbackQuery):
 @router.callback_query(F.data.startswith("subcategory:"))
 async def subcategory_callback(query: CallbackQuery):
     subcategory_id = int(query.data.split(":")[1])
+    keyboard = await create_products_keyboard(subcategory_id)
 
-    await query.message.edit_text("Выберите товар:", reply_markup=await create_products_keyboard(subcategory_id))
+    await query.message.edit_text(text="Выберите товар:", reply_markup=keyboard)
     await query.answer()
 
 
@@ -82,31 +83,43 @@ async def product_callback(query: CallbackQuery, state: FSMContext):
 
         # Создаем inline-клавиатуру
         keyboard = InlineKeyboardBuilder()
-        keyboard.row(InlineKeyboardButton(text="Назад к товарам", callback_data=f"subcategory:{product.subcategory_id}"))
-        keyboard.row(InlineKeyboardButton(text="Добавить в корзину", callback_data=f"add_to_cart:{product_id}"))
-        keyboard.row(InlineKeyboardButton(text="Перейти в корзину", callback_data="view_cart"))
+        # keyboard.row(InlineKeyboardButton(
+        #     text="Назад к товарам",
+        #     callback_data=f"subcategory:{product.subcategory_id}"
+        # ))
+        keyboard.row(InlineKeyboardButton(
+            text="Добавить в корзину",
+            callback_data=f"add_to_cart:{product_id}"
+        ))
+        keyboard.row(InlineKeyboardButton(
+            text="Перейти в корзину",
+            callback_data="view_cart"
+        ))
+
+        caption = (f"<b>{product.name}</b>\n\n"
+                   f"{product.description}\n\n"
+                   f"Цена: {product.price} руб.")
 
         # Проверка на наличие фото
         if product.photo:
             try:
                 await query.message.answer_photo(
-                    photo=types.URLInputFile(product.photo),  # Или FSInputFile
-                    caption=f"<b>{product.name}</b>\n\n{product.description}\n\nЦена: {product.price} руб.",
+                    photo=types.URLInputFile(product.photo),
+                    caption=caption,
                     parse_mode=ParseMode.HTML,
                     reply_markup=keyboard.as_markup()
                 )
             except Exception as e:
                 logging.error(f"Ошибка вывода фото: {e}")
                 await query.message.answer(
-                    f"<b>{product.name}</b>\n\n{product.description}\n\nЦена: {product.price} руб.\n"
-                    f"(Фото не удалось загрузить)",
+                    text=f"{caption}\n(Фото не удалось загрузить)",
                     parse_mode=ParseMode.HTML,
                     reply_markup=keyboard.as_markup()
                 )
 
         else:
             await query.message.answer(
-                f"<b>{product.name}</b>\n\n{product.description}\n\nЦена: {product.price} руб.",
+                text=caption,
                 parse_mode=ParseMode.HTML,
                 reply_markup=keyboard.as_markup()
             )
@@ -341,7 +354,7 @@ async def successful_payment(message: types.Message, state: FSMContext):
     await message.answer(f"✅ Ваш заказ успешно оплачен!\n"
                          f"ID платежа: {payment_info.telegram_payment_charge_id}\n"
                          f"Сумма: {payment_info.total_amount / 100} {payment_info.currency}\n"
-                         f"Payload: {order_payload}"
+                         f"Заказ: {order_payload}"
                          )
     await clear_cart(message.from_user.id)  # Очищаем корзину после успешной оплаты
     await state.clear()  # Очистка state для этого пользователя
