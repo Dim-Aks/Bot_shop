@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from database import fetch_product, \
     add_to_cart, fetch_cart, remove_from_cart, clear_cart, add_user_if_not_exists
 from keyboards import create_categories_keyboard, \
-    create_subcategories_keyboard, create_products_keyboard, send_categories_keyboard
+    create_subcategories_keyboard, create_products_keyboard, send_categories_keyboard, create_faq_keyboard
 from state import QuantityForm, DeliveryForm
 from utils import check_subscription_by_username
 
@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 # Канал/группа для проверки подписки
 CHANNEL_USERNAME = os.getenv("CHANNEL_ID")
 PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN")
+BOSS = os.getenv("BOSS")
 
 
-# Oбработчик команды start
+# обработчик команды start
 @router.message(CommandStart())
 async def command_start_handler(message: types.Message, bot: Bot):
     user_id = message.from_user.id
@@ -39,7 +40,7 @@ async def command_start_handler(message: types.Message, bot: Bot):
     if CHANNEL_USERNAME:
         is_subscribed = await check_subscription_by_username(bot, user_id, CHANNEL_USERNAME)
         if not is_subscribed:
-            await message.reply("Пожалуйста, подпишитесь на канал @Aksenona, чтобы использовать бота.")
+            await message.reply(f"Пожалуйста, подпишитесь на канал {CHANNEL_USERNAME}, чтобы использовать бота.")
             return
     await message.answer(
         "Добро пожаловать!\nВыберите категорию товаров:",
@@ -53,7 +54,7 @@ async def back_to_categories_callback(query: types.CallbackQuery):
     await send_categories_keyboard(query)
 
 
-# Oбработчик выбора категории
+# обработчик выбора категории
 @router.callback_query(F.data.startswith("category:"))
 async def category_callback(query: CallbackQuery):
     category_id = int(query.data.split(":")[1])
@@ -90,11 +91,13 @@ async def product_callback(query: CallbackQuery, state: FSMContext):
         keyboard.row(InlineKeyboardButton(
             text="Добавить в корзину",
             callback_data=f"add_to_cart:{product_id}"
-        ))
+        )
+        )
         keyboard.row(InlineKeyboardButton(
             text="Перейти в корзину",
             callback_data="view_cart"
-        ))
+        )
+        )
 
         caption = (f"<b>{product.name}</b>\n\n"
                    f"{product.description}\n\n"
@@ -337,9 +340,10 @@ async def pre_checkout_query_handler(query: PreCheckoutQuery, bot: Bot, state: F
                                             error_message="Некорректная сумма заказа. Пожалуйста, попробуйте еще раз."
                                             )
         logger.info(f"PreCheckoutQuery: Неверная сумма."
-                    f" Ожидали {int(total_amount_from_state * 100)}, получили {query.total_amount}")
+                    f" Ожидали {int(total_amount_from_state * 100)}, получили {query.total_amount}"
+                    )
         return
-    
+
     # Если все проверки пройдены, подтверждаем платеж
     await bot.answer_pre_checkout_query(pre_checkout_query_id=query.id, ok=True)
     logging.info(f"PreCheckoutQuery: Платеж подтвержден для payload: {order_payload}")
@@ -370,30 +374,30 @@ async def cancel_order_callback(query: CallbackQuery, state: FSMContext):
     await query.answer()
 
 
-# Обработчик inline-запросов для FAQ
-@router.inline_query(lambda q: len(q.query) > 3)
-async def faq_inline_query(inline_query: types.InlineQuery):
-    # Здесь должна быть логика получения вопросов и ответов из базы данных
-    # или другого источника. Для примера, просто заглушка:
-    results = [
-        types.InlineQueryResultArticle(
-            id="1",
-            title="Как сделать заказ?",
-            description="Подробная инструкция по оформлению заказа.",
-            input_message_content=types.InputTextMessageContent(
-                message_text="Чтобы сделать заказ, выберите товары и перейдите в корзину."
-            ),
-        ),
-        types.InlineQueryResultArticle(
-            id="2",
-            title="Как оплатить заказ?",
-            description="Информация о способах оплаты.",
-            input_message_content=types.InputTextMessageContent(
-                message_text="Оплатить заказ можно через платежный шлюз ЮKassa."
-            ),
-        ),
-    ]
-    await inline_query.answer(results, cache_time=1)  # cache_time - время кеширования результатов в секундах
+# Обработчик кнопки FAQ
+@router.message(F.text == "/faq")
+async def faq_button(message: types.Message):
+    await message.answer(
+        "Выберите вопрос из FAQ:",
+        reply_markup=await create_faq_keyboard(),
+    )
+
+
+# Обработчик запросов для FAQ
+@router.callback_query(F.data.startswith("faq_"))
+async def faq_callback(query: types.CallbackQuery):
+    if query.data == "faq_order":
+        await query.message.answer(f"Чтобы сделать заказ: выберите товары и добавьте необходимое количество в корзину,"
+                                   f" перейдите в корзину и нажмите кнопку 'Оплатить'.")
+    elif query.data == "faq_payment":
+        await query.message.answer(f"Оплатить заказ можно через платежный шлюз ЮKassa. "
+                                   f"После нажатия на кнопку 'Оплатить', "
+                                   f"в открывшемся окне, заполните необходимые платёжные данные.")
+    elif query.data == "faq_who_boss":
+        await query.message.answer(f"Если всё сломалось, опишите подробно,"
+                                   f" что не так (в идеале со скринами) и какие действия этому предшествовали - "
+                                   f"вот этому гуру {BOSS}"
+                                   )
 
 
 # Обработчик пагинации категорий

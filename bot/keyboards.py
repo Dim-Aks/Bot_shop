@@ -15,7 +15,7 @@ async def send_categories_keyboard(query: types.CallbackQuery):
     await query.answer()
 
 
-# Создает кнопки пагинации
+# кнопки пагинации
 def create_pagination_buttons(current_page: int, total_pages: int, prefix: str) -> list[InlineKeyboardButton]:
     buttons = []
     if current_page > 1:
@@ -80,7 +80,7 @@ async def create_subcategories_keyboard(category_id: int, page: int = 1) -> Inli
     return builder.as_markup()
 
 
-# Создает клавиатуру товаров с пагинацией
+# клавиатура товаров с пагинацией
 async def create_products_keyboard(subcategory_id: int, page: int = 1) -> InlineKeyboardMarkup:
     products = await fetch_products_by_subcategory(subcategory_id)
     subcategory = await fetch_subcategory(subcategory_id)
@@ -109,3 +109,14 @@ async def create_products_keyboard(subcategory_id: int, page: int = 1) -> Inline
     builder.row(InlineKeyboardButton(text="Перейти в корзину", callback_data="view_cart"))
 
     return builder.as_markup()
+
+
+# Обработчик кнопки FAQ
+async def create_faq_keyboard():
+    keyboard = InlineKeyboardBuilder()
+    keyboard.button(text="Как сделать заказ?", callback_data="faq_order")
+    keyboard.button(text="Как оплатить заказ?", callback_data="faq_payment")
+    keyboard.button(text="Всё сломалось 😢", callback_data="faq_who_boss")
+    keyboard.adjust(1)  # Кнопки в один столбец
+
+    return keyboard.as_markup()

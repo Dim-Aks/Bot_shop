@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-async_engine = create_async_engine(DATABASE_URL, echo=True)
+async_engine = create_async_engine(DATABASE_URL)
 async_session_maker = async_sessionmaker(async_engine, class_=AsyncSession)
 
 
@@ -175,7 +175,9 @@ async def add_to_cart(user_id: int, product_id: int, quantity: float | int) -> b
                     f"Обновлено количество товара в корзине (ID: {cart_item.id}), quantity: {cart_item.quantity}"
                 )
             else:
-                logger.info(f"Товара нет в корзине, данные для добавления({user.id, product_id, quantity, product.price})")
+                logger.info(
+                    f"Товара нет в корзине, данные для добавления({user.id, product_id, quantity, product.price})"
+                )
                 # Товара нет в корзине, создаем новый элемент
                 new_cart_item = Cart(
                     user_id=user.id,

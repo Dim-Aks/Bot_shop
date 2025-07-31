@@ -18,11 +18,11 @@ class Cart(Base):
     product: Mapped["Product"] = relationship(back_populates="cart")
 
     def __str__(self):
-        return (f'Корзина пользователя:{self.user_id}, Продукт: {self.product_id}, Количество: {self.quantity}')
+        return f'Корзина пользователя:{self.user_id}, Продукт: {self.product_id}, Количество: {self.quantity}'
 
     def __repr__(self):
-        return (f"Корзина(id={self.id}, пользователь='{self.user_id}, product_id='{self.product_id}',"
-                f" Количество='{self.quantity}', Цена='{self.price}')")
+        return (f"Корзина(id={self.id}, пользователь={self.user_id}, product_id={self.product_id},"
+                f" Количество={self.quantity}, Цена={self.price})")
 
 
 class Category(Base):
@@ -40,7 +40,7 @@ class Category(Base):
         return self.name
 
     def __repr__(self):
-        return f"Категория (id={self.id}, name='{self.name}, description='{self.description}')"
+        return f"Категория (id={self.id}, name={self.name})"
 
 
 class Product(Base):
@@ -63,8 +63,8 @@ class Product(Base):
         return self.name
 
     def __repr__(self):
-        return (f"Продукт (id={self.id}, category_id='{self.category_id}, subcategory_id='{self.subcategory_id}',"
-                f" name='{self.name}', description='{self.description}, photo='{self.photo}', price='{self.price}'')")
+        return (f"Продукт (id={self.id}, category_id={self.category_id}, subcategory_id={self.subcategory_id},"
+                f" name={self.name}, photo={self.photo}, price={self.price})")
 
 
 class SubCategory(Base):
@@ -83,8 +83,8 @@ class SubCategory(Base):
         return self.name
 
     def __repr__(self):
-        return (f"Подкатегория (id={self.id}, category_id='{self.category_id},"
-                f" name='{self.name}', description='{self.description}')")
+        return (f"Подкатегория (id={self.id}, category_id={self.category_id},"
+                f" name={self.name}, description={self.description})")
 
 
 class User(Base):
@@ -103,5 +103,5 @@ class User(Base):
         return f"{self.first_name or ''} {self.last_name or ''} ({self.user_id})"
 
     def __repr__(self):
-        return (f"Пользователь (id={self.id}, user_id='{self.user_id}, username='{self.username}',"
-                f" first_name='{self.first_name}', last_name='{self.last_name}, is_active='{self.is_active}')")
+        return (f"Пользователь (id={self.id}, user_id={self.user_id}, username={self.username},"
+                f" first_name={self.first_name}, last_name={self.last_name}, is_active={self.is_active})")
